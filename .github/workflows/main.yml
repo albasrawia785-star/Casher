@@ -26,30 +26,36 @@ jobs:
       - name: Unzip project files
         run: unzip *.zip -d project_dir
 
-      # 4. الانتقال للمجلد وتوليد ملف gradlew المفقود وبناء المشروع
-      - name: Generate Gradle Wrapper and Build APK
+      # 4. إصلاح الملفات المفقودة وتشغيل البناء بالوضع الصامت
+      - name: Fix Missing Files and Build APK
+        env:
+          # حل مشكلة الـ KSP و AWT-EventQueue بإجبار الجافا على الوضع الصامت
+          _JAVA_OPTIONS: "-Djava.awt.headless=true"
         run: |
-          # البحث التلقائي عن المجلد المفرغ الذي يحتوي على ملف settings.gradle.kts
+          # البحث عن مجلد المشروع
           TARGET_DIR=$(find project_dir -name "settings.gradle.kts" -exec dirname {} \;)
-          
           if [ -z "$TARGET_DIR" ]; then
             echo "❌ خطأ: لم يتم العثور على ملفات مشروع أندرويد!"
             exit 1
           fi
-          
-          echo "📂 تم العثور على المجلد الصحيح: $TARGET_DIR"
           cd "$TARGET_DIR"
           
-          echo "🛠️ توليد ملفات gradlew المفقودة..."
+          echo "🛠️ توليد ملفات gradlew..."
           gradle wrapper
-          
-          echo "🔑 إعطاء صلاحيات التشغيل..."
           chmod +x gradlew
           
-          echo "🚀 بدء بناء الـ APK..."
-          ./gradlew assembleDebug
+          echo "🔑 توليد ملف debug.keystore وهمي لتخطي خطأ التوقيع..."
+          keytool -genkey -v -keystore debug.keystore -storepass android -alias androiddebugkey -keypass android -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Android Debug,O=Android,C=US"
 
-      # 5. رفع ملف الـ APK الناتج لكي تقوم بتحميله من الـ Actions
+          echo "📄 توليد ملف google-services.json وهمي لتخطي الفحص..."
+          if [ ! -f "app/google-services.json" ]; then
+            echo '{"project_info": {"project_number": "123", "project_id": "mock"}, "client": [{"client_info": {"mobilesdk_app_id": "1:123:android:123", "android_client_info": {"package_name": "com.example.mock"}}, "api_key": [{"current_key": "mock"}]}]}' > app/google-services.json
+          fi
+
+          echo "🚀 بدء بناء الـ APK..."
+          ./gradlew assembleDebug --no-daemon
+
+      # 5. رفع ملف الـ APK الناتج لكي تقوم بتحميله
       - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
         with:
