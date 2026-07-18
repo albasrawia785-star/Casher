@@ -22,25 +22,36 @@ jobs:
           java-version: '17'
           distribution: 'zulu'
 
-      # 3. فك ضغط أي ملف zip مهما كان اسمه داخل مجلد project_dir
+      # 3. فك ضغط الملف المضغوط
       - name: Unzip project files
         run: unzip *.zip -d project_dir
 
-      # 4. إعداد أداة Gradle وإعطاء صلاحية التشغيل للملف المسؤول عن البناء
-      - name: Grant execute permission for gradlew
+      # 4. الانتقال للمجلد وتوليد ملف gradlew المفقود وبناء المشروع
+      - name: Generate Gradle Wrapper and Build APK
         run: |
-          cd project_dir
+          # البحث التلقائي عن المجلد المفرغ الذي يحتوي على ملف settings.gradle.kts
+          TARGET_DIR=$(find project_dir -name "settings.gradle.kts" -exec dirname {} \;)
+          
+          if [ -z "$TARGET_DIR" ]; then
+            echo "❌ خطأ: لم يتم العثور على ملفات مشروع أندرويد!"
+            exit 1
+          fi
+          
+          echo "📂 تم العثور على المجلد الصحيح: $TARGET_DIR"
+          cd "$TARGET_DIR"
+          
+          echo "🛠️ توليد ملفات gradlew المفقودة..."
+          gradle wrapper
+          
+          echo "🔑 إعطاء صلاحيات التشغيل..."
           chmod +x gradlew
-
-      # 5. أمر بناء الـ APK (سيقوم ببناء نسخة الـ Debug)
-      - name: Build APK with Gradle
-        run: |
-          cd project_dir
+          
+          echo "🚀 بدء بناء الـ APK..."
           ./gradlew assembleDebug
 
-      # 6. خطوة اختيارية (لحفظ ملف الـ APK المكتمل حتى تستطيع تحميله من المتصفح)
+      # 5. رفع ملف الـ APK الناتج لكي تقوم بتحميله من الـ Actions
       - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
         with:
           name: app-debug-apk
-          path: project_dir/app/build/outputs/apk/debug/app-debug.pdf # أو امتداد .apk حسب إعدادات مشروعك
+          path: project_dir/**/build/outputs/apk/debug/*.apk
