@@ -163,7 +163,7 @@ jobs:
         run: |
           MANIFEST_PATH="android/app/src/main/AndroidManifest.xml"
           if [ -f "$MANIFEST_PATH" ]; then
-            sed -i '/<\/manifest>/i \    <uses-permission android:name="android.permission.CAMERA" />\n    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />\n    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" />\n    <uses-permission android:name="android.permission.INTERNET" />' $MANIFEST_PATH
+            sed -i '/<\/manifest>/i \    <uses-permission android:name="android.permission.CAMERA" />\n    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />\n    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" />' $MANIFEST_PATH
           fi
 
       - name: Update Kotlin & Gradle Versions for Java 21
@@ -189,7 +189,10 @@ jobs:
 
           ./gradlew assembleRelease --no-daemon -Dorg.gradle.project.android.useAndroidX=true
 
-          BUILD_TOOLS_DIR=$(ls -d $ANDROID_HOME/build-tools/* \vert{} tail -n 1)$BUILD_TOOLS_DIR/apksigner sign --ks release.keystore --ks-pass pass:"SaydaliPass123" --key-pass pass:"SaydaliPass123" --out app/build/outputs/apk/release/Daftar-Aldeyon-Signed.apk app/build/outputs/apk/release/app-release-unsigned.apk
+          BUILD_TOOLS_DIR=$(find$ANDROID_HOME/build-tools -maxdepth 1 -mindepth 1 | sort -V | tail -n 1)
+          echo "Using Build Tools from: $BUILD_TOOLS_DIR"
+
+          $BUILD_TOOLS_DIR/apksigner sign --ks release.keystore --ks-pass pass:"SaydaliPass123" --key-pass pass:"SaydaliPass123" --out app/build/outputs/apk/release/Daftar-Aldeyon-Signed.apk app/build/outputs/apk/release/app-release-unsigned.apk
 
       - name: Upload Signed APK
         uses: actions/upload-artifact@v4
