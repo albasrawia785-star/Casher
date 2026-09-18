@@ -1,4 +1,4 @@
-name: Build Android APK
+Name: Build Android APK
 
 on:
   push:
@@ -56,53 +56,59 @@ jobs:
         run: |
           cat << 'EOF' > dist/inject_share.js
           (function() {
-            let pendingBase64 = null;
+            let lastGeneratedBlob = null;
+            let lastBlobTime = 0;
 
             const originalCreate = URL.createObjectURL;
             URL.createObjectURL = function(blob) {
               if (blob) {
-                const reader = new FileReader();
-                reader.onloadend = function() {
-                  if (reader.result) {
-                    pendingBase64 = reader.result.split(',')[1];
-                  }
-                };
-                reader.readAsDataURL(blob);
+                lastGeneratedBlob = blob;
+                lastBlobTime = Date.now();
               }
               return originalCreate.call(this, blob);
             };
 
             document.addEventListener('click', async (e) => {
-              const target = e.target.closest('button, a, div');
-              if (target && target.innerText && target.innerText.includes('تنزيل النسخة الاحتياطية')) {
-                
+              const btn = e.target.closest('button, a, [role="button"], div');
+              
+              if (btn && btn.textContent && btn.textContent.includes('تنزيل النسخة الاحتياطية')) {
                 setTimeout(async () => {
-                  if (!pendingBase64) return;
-
-                  const dateStr = new Date().toISOString().slice(0, 10);
-                  const fileName = `Daftar-Aldeyon-Backup-${dateStr}.json`;
+                  if (!lastGeneratedBlob || (Date.now() - lastBlobTime > 5000)) {
+                    console.log('لم يتم التعرّف على الملف الجديد للنسخة الاحتياطية');
+                    return;
+                  }
 
                   try {
-                    if (window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.Filesystem) {
-                      const { Filesystem, Share } = window.Capacitor.Plugins;
+                    const reader = new FileReader();
+                    reader.onloadend = async function() {
+                      if (!reader.result) return;
+                      const base64Data = reader.result.split(',')[1];
+                      const dateStr = new Date().toISOString().slice(0, 10);
+                      const fileName = `Daftar-Aldeyon-Backup-${dateStr}.json`;
 
-                      const savedFile = await Filesystem.writeFile({
-                        path: fileName,
-                        data: pendingBase64,
-                        directory: 'CACHE'
-                      });
+                      if (window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.Filesystem) {
+                        const { Filesystem, Share } = window.Capacitor.Plugins;
 
-                      await Share.share({
-                        title: 'النسخة الاحتياطية',
-                        text: 'ملف النسخة الاحتياطية - دفتر الديون',
-                        url: savedFile.uri,
-                        dialogTitle: 'مشاركة أو حفظ النسخة الاحتياطية'
-                      });
-                    }
+                        const savedFile = await Filesystem.writeFile({
+                          path: fileName,
+                          data: base64Data,
+                          directory: 'CACHE'
+                        });
+
+                        await Share.share({
+                          title: 'النسخة الاحتياطية',
+                          text: 'ملف النسخة الاحتياطية - دفتر الديون',
+                          url: savedFile.uri,
+                          dialogTitle: 'مشاركة أو حفظ النسخة الاحتياطية'
+                        });
+                      }
+                    };
+                    reader.readAsDataURL(lastGeneratedBlob);
+
                   } catch (err) {
-                    console.log('إلغاء المشاركة:', err);
+                    console.error('خطأ أثناء تنفيذ المشاركة:', err);
                   }
-                }, 400);
+                }, 500);
               }
             }, true);
           })();
@@ -128,7 +134,6 @@ jobs:
           import os
           from PIL import Image
 
-          # أحجام أيقونات الأندرويد لجميع الشاشات
           sizes = {
               'mipmap-mdpi': 48,
               'mipmap-hdpi': 72,
@@ -149,7 +154,6 @@ jobs:
                   os.makedirs(target_dir, exist_ok=True)
                   resized = img.resize((size, size), Image.Resampling.LANCZOS)
                   
-                  # استبدال جميع ملفات الأيقونات الافتراضية
                   for fname in ['ic_launcher.png', 'ic_launcher_round.png', 'ic_launcher_foreground.png']:
                       resized.save(os.path.join(target_dir, fname))
               print('Successfully replaced all Android app icons!')
@@ -185,8 +189,7 @@ jobs:
 
           ./gradlew assembleRelease --no-daemon -Dorg.gradle.project.android.useAndroidX=true
 
-          BUILD_TOOLS_DIR=$(ls -d $ANDROID_HOME/build-tools/* | tail -n 1)
-          $BUILD_TOOLS_DIR/apksigner sign --ks release.keystore --ks-pass pass:"SaydaliPass123" --key-pass pass:"SaydaliPass123" --out app/build/outputs/apk/release/Daftar-Aldeyon-Signed.apk app/build/outputs/apk/release/app-release-unsigned.apk
+          BUILD_TOOLS_DIR=$(ls -d $ANDROID_HOME/build-tools/* \vert{} tail -n 1)$BUILD_TOOLS_DIR/apksigner sign --ks release.keystore --ks-pass pass:"SaydaliPass123" --key-pass pass:"SaydaliPass123" --out app/build/outputs/apk/release/Daftar-Aldeyon-Signed.apk app/build/outputs/apk/release/app-release-unsigned.apk
 
       - name: Upload Signed APK
         uses: actions/upload-artifact@v4
