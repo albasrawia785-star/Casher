@@ -45,12 +45,12 @@ jobs:
         run: |
           npm install --force
 
-      - name: Build Web Application
+      - name: Build Web Application (With JS Obfuscation)
         run: npm run build
 
-      - name: Install Capacitor Core & Plugins
+      - name: Install Capacitor Core, Native SQLite & Plugins
         run: |
-          npm install @capacitor/core@latest @capacitor/cli@latest @capacitor/android@latest @capacitor/filesystem@latest @capacitor/share@latest
+          npm install @capacitor/core@latest @capacitor/cli@latest @capacitor/android@latest @capacitor/filesystem@latest @capacitor/share@latest @capacitor-community/sqlite@latest
 
       - name: Inject Native Share Interceptor
         run: |
@@ -128,7 +128,6 @@ jobs:
           import os
           from PIL import Image
 
-          # أحجام أيقونات الأندرويد لجميع الشاشات
           sizes = {
               'mipmap-mdpi': 48,
               'mipmap-hdpi': 72,
@@ -149,7 +148,6 @@ jobs:
                   os.makedirs(target_dir, exist_ok=True)
                   resized = img.resize((size, size), Image.Resampling.LANCZOS)
                   
-                  # استبدال جميع ملفات الأيقونات الافتراضية
                   for fname in ['ic_launcher.png', 'ic_launcher_round.png', 'ic_launcher_foreground.png']:
                       resized.save(os.path.join(target_dir, fname))
               print('Successfully replaced all Android app icons!')
