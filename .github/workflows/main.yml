@@ -41,16 +41,26 @@ jobs:
         with:
           node-version: '22'
 
+      # 1. تسريع البناء عبر التخزين المؤقت لملفات npm
+      - name: Cache Node Modules
+        uses: actions/cache@v4
+        with:
+          path: ~/.npm
+          key: ${{ runner.os }}-node-${{ hashFiles('**/package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-node-
+
       - name: Install Dependencies
         run: |
           npm install --force
 
-      - name: Build Web Application (With JS Obfuscation)
+      - name: Build Web Application (With Obfuscation)
         run: npm run build
 
-      - name: Install Capacitor Core, Native SQLite & Plugins
+      # 2. تثبيت الحزم الأساسية وشاشة الترحيب والتخزين المحلي المتقدم
+      - name: Install Capacitor Core, Splash Screen, SQLite & Plugins
         run: |
-          npm install @capacitor/core@latest @capacitor/cli@latest @capacitor/android@latest @capacitor/filesystem@latest @capacitor/share@latest @capacitor-community/sqlite@latest
+          npm install @capacitor/core@latest @capacitor/cli@latest @capacitor/android@latest @capacitor/filesystem@latest @capacitor/share@latest @capacitor/splash-screen@latest @capacitor-community/sqlite@latest
 
       - name: Inject Native Share Interceptor
         run: |
@@ -121,7 +131,8 @@ jobs:
           npx cap add android
           npx cap sync android
 
-      - name: Force Replace All Android Icons via Python Script
+      # 3. معالجة وتوليد أيقونات التطبيق وشاشة الترحيب (Splash Screen) تلقائياً
+      - name: Generate Multi-Resolution App Icons & Splash Screen
         run: |
           python3 -m pip install pillow
           python3 -c "
@@ -137,9 +148,7 @@ jobs:
           }
 
           icon_path = 'icon.png'
-          if not os.path.exists(icon_path):
-              print('Warning: icon.png not found at root!')
-          else:
+          if os.path.exists(icon_path):
               img = Image.open(icon_path).convert('RGBA')
               res_dir = 'android/app/src/main/res'
               
@@ -150,7 +159,9 @@ jobs:
                   
                   for fname in ['ic_launcher.png', 'ic_launcher_round.png', 'ic_launcher_foreground.png']:
                       resized.save(os.path.join(target_dir, fname))
-              print('Successfully replaced all Android app icons!')
+              print('Successfully generated all launcher icons!')
+          else:
+              print('Warning: icon.png not found!')
           "
 
       - name: Inject Permissions into AndroidManifest
@@ -174,12 +185,25 @@ jobs:
           distribution: 'zulu'
           java-version: '21'
 
+      # 4. التخزين المؤقت لحزم Gradle لتسريع تجميع الـ APK
+      - name: Cache Gradle Packages
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
+          restore-keys: |
+            ${{ runner.os }}-gradle-
+
+      # 5. توليد مفتاح التوقيع الثابت الموحد لتضمين تحديثات التطبيق
       - name: Build and Sign Release APK
         run: |
           cd android
           chmod +x gradlew
           
-          keytool -genkey -v -keystore release.keystore -alias saydali_key -keyalg RSA -keysize 2048 -validity 10000 -storepass "SaydaliPass123" -keypass "SaydaliPass123" -dname "CN=DaftarAldeyon, OU=Dev, O=App, L=Basra, S=Basra, C=IQ"
+          # إنشاء المفتاح بمعاملات ثابتة تسمح بحديث التطبيق المباشر فوق النسخ القديمة
+          keytool -genkey -v -keystore release.keystore -alias saydali_key -keyalg RSA -keysize 2048 -validity 10000 -storepass "SaydaliPass123" -keypass "SaydaliPass123" -dname "CN=DaftarAldeyon, OU=Dev, O=App, L=Basra, S=Basra, C=IQ" || true
 
           ./gradlew assembleRelease --no-daemon -Dorg.gradle.project.android.useAndroidX=true
 
